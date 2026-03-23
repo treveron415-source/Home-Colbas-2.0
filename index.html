@@ -1513,7 +1513,11 @@ function loadRecipes(){
   // Не допускаем дублей со встроенными рецептами
   const builtinIds=new Set(DB.map(r=>r.id));
   custom=custom.filter(r=>!builtinIds.has(r.id));
-  return [...DB.map(r=>JSON.parse(JSON.stringify(r))),...custom];
+  // Скрытые встроенные рецепты (удалённые пользователем)
+  let hidden=[];
+  try{hidden=JSON.parse(localStorage.getItem('kp_hidden')||'[]');}catch(e){}
+  const hiddenSet=new Set(hidden);
+  return [...DB.map(r=>JSON.parse(JSON.stringify(r))).filter(r=>!hiddenSet.has(r.id)),...custom];
 }
 function savePrices(){
   try{localStorage.setItem('kp_prices',JSON.stringify(prices));}catch(e){}
@@ -1948,21 +1952,6 @@ function setCasingPrice(keyWithPrefix, val){
 // ══════ TAB: EDIT ══════
 function renderEdit(){
   const r=recipes.find(x=>x.id===curId); if(!r)return;
-  const isBuiltin=DB.some(x=>x.id===r.id);
-  if(isBuiltin){
-    document.getElementById('tab-edit').innerHTML=`
-      <div class="locked-box">
-        <div style="font-size:40px;margin-bottom:12px">🔒</div>
-        <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:8px">Встроенный рецепт</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.6">
-          Рецепт «${r.name}» является базовым и защищён от изменений.<br>
-          Создайте редактируемую копию — внесите любые изменения: состав, граммовку, этапы термообработки.
-        </div>
-        <button class="btn btn-primary" onclick="cloneRecipe(${r.id})">✎ Создать редактируемую копию</button>
-        <button class="btn btn-outline" onclick="cloneAndEdit(${r.id})" style="margin-top:8px">📋 Скопировать и сразу редактировать</button>
-      </div>`;
-    return;
-  }
 
   const mRow=(i,idx)=>`<div class="ing-edit-row-5" data-idx="${idx}">
     <div style="display:flex;gap:4px;align-items:center">
@@ -2334,6 +2323,13 @@ function cloneAndEdit(id){
 
 function deleteRecipe(id){
   if(!confirm('Удалить рецепт? Это действие нельзя отменить.'))return;
+  const isBuiltin=DB.some(x=>x.id===id);
+  if(isBuiltin){
+    let hidden=[];
+    try{hidden=JSON.parse(localStorage.getItem('kp_hidden')||'[]');}catch(e){}
+    if(!hidden.includes(id)) hidden.push(id);
+    try{localStorage.setItem('kp_hidden',JSON.stringify(hidden));}catch(e){}
+  }
   recipes=recipes.filter(r=>r.id!==id);
   saveCustom();
   curId=null;
